@@ -1,3 +1,7 @@
+/* eslint-disable no-debugger */
+/* eslint-disable no-param-reassign */
+/* eslint-disable no-console */
+/* eslint-disable consistent-return */
 /* eslint-disable no-use-before-define */
 /* eslint-disable no-unused-expressions */
 // 参考掘金文章 https://juejin.cn/post/6945319439772434469
@@ -11,7 +15,11 @@ class MyPromise {
   constructor(executor) {
     // executor 是一个执行器，进入会立即执行
     // 并传入resolve和reject方法
-    executor(this.resolve, this.reject);
+    try {
+      executor(this.resolve, this.reject);
+    } catch (error) {
+      this.reject(error);
+    }
   }
 
   // 储存状态的变量，初始值是 pending
@@ -52,7 +60,7 @@ class MyPromise {
 
   // 更改失败后的状态
   reject = (reason) => {
-    if (this.status === REJECTED) {
+    if (this.status === PENDING) {
       // 状态成功为失败
       this.status = REJECTED;
       // 保存失败后的原因
@@ -66,37 +74,69 @@ class MyPromise {
 
   // then方法的实现
   then = (onFulfilled, onRejected) => {
-    // // 判断状态
-    // if (this.status === FULFILLED) {
-    //   // 调用成功回调，并且把值返回
-    //   onFulfilled(this.value);
-    // } else if (this.status === REJECTED) {
-    //   // 调用失败回调，并且把原因返回
-    //   onRejected(this.reason);
-    // } else if (this.status === PENDING) {
-    //   // 因为不知道后面状态的变化，这里先将成功回调和失败回调存储起来
-    //   // 等待后续调用
-    //   this.onFulfilledCallbacks.push(onFulfilled);
-    //   this.onRejectedCallbacks.push(onRejected);
-    // }
+    onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : (value) => value;
+    onRejected =
+      typeof onRejected === 'function'
+        ? onRejected
+        : (reason) => {
+            throw reason;
+          };
+    // 为了链式调用这里直接创建一个 MyPromise，并在后面 return 出去
     const promise2 = new MyPromise((resolve, reject) => {
       // 这里的内容在执行器中，会立即执行
       if (this.status === FULFILLED) {
-        const x = onFulfilled(this.value);
-        // 传入 resolvePromise 集中处理
-        resolvePromise(x, resolve, reject);
+        queueMicrotask(() => {
+          try {
+            const x = onFulfilled(this.value);
+            // 传入 resolvePromise 集中处理
+            resolvePromise(promise2, x, resolve, reject);
+          } catch (err) {
+            reject(err);
+          }
+        });
       } else if (this.status === REJECTED) {
-        onRejected(this.reason);
+        queueMicrotask(() => {
+          try {
+            const x = onRejected(this.reason);
+            resolvePromise(promise2, x, resolve, reject);
+          } catch (err) {
+            reject(err);
+          }
+        });
       } else if (this.status === PENDING) {
-        this.onFulfilledCallbacks.push(onFulfilled);
-        this.onRejectedCallbacks.push(onRejected);
+        this.onFulfilledCallbacks.push(() => {
+          try {
+            // 获取成功回调函数的执行结果
+            const x = onFulfilled(this.value);
+            // 传入 resolvePromise 集中处理
+            resolvePromise(promise2, x, resolve, reject);
+          } catch (error) {
+            reject(error);
+          }
+        });
+        this.onRejectedCallbacks.push(() => {
+          queueMicrotask(() => {
+            try {
+              // 调用失败回调，并且把原因返回
+              const x = onRejected(this.reason);
+              // 传入 resolvePromise 集中处理
+              resolvePromise(promise2, x, resolve, reject);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
       }
     });
     return promise2;
   };
 }
 
-function resolvePromise(x, resolve, reject) {
+function resolvePromise(promise2, x, resolve, reject) {
+  // 如果相等了，说明return的是自己，抛出类型错误并返回
+  if (promise2 === x) {
+    return reject(new TypeError('Chaining cycle detected for promise #<Promise>'));
+  }
   // 判断x是不是 MyPromise 实例对象
   if (x instanceof MyPromise) {
     // 执行 x，调用 then 方法，目的是将其状态变为 fulfilled 或者 rejected
