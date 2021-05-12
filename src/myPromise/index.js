@@ -1,3 +1,4 @@
+/* eslint-disable func-names */
 /* eslint-disable no-debugger */
 /* eslint-disable no-param-reassign */
 /* eslint-disable no-console */
@@ -39,9 +40,21 @@ class MyPromise {
   // onRejectedCallback = null;
   onRejectedCallbacks = [];
 
-  // // resolve和reject为什么要用箭头函数？
-  // // 如果直接调用的话，普通函数this指向的是window或者undefined
-  // // 用箭头函数就可以让this指向当前实例对象
+  // resolve和reject为什么要用箭头函数？
+  // 如果直接调用的话，普通函数this指向的是window或者undefined
+  // 用箭头函数就可以让this指向当前实例对象
+
+  // resolve 静态方法
+  static resolve(parameter) {
+    // 如果传入 MyPromise 就直接返回
+    if (parameter instanceof MyPromise) {
+      return parameter;
+    }
+    // 转成常规方法
+    return new MyPromise((resolve) => {
+      resolve(parameter);
+    });
+  }
 
   // 更改成功后的状态
   resolve = (value) => {
@@ -57,6 +70,13 @@ class MyPromise {
       }
     }
   };
+
+  // reject 静态方法
+  static reject(reason) {
+    return new MyPromise((resolve, reject) => {
+      reject(reason);
+    });
+  }
 
   // 更改失败后的状态
   reject = (reason) => {
@@ -83,8 +103,8 @@ class MyPromise {
           };
     // 为了链式调用这里直接创建一个 MyPromise，并在后面 return 出去
     const promise2 = new MyPromise((resolve, reject) => {
-      // 这里的内容在执行器中，会立即执行
-      if (this.status === FULFILLED) {
+      const fulfilledMicrotask = () => {
+        // 创建一个微任务等待 promise2 完成初始化
         queueMicrotask(() => {
           try {
             const x = onFulfilled(this.value);
@@ -94,7 +114,9 @@ class MyPromise {
             reject(err);
           }
         });
-      } else if (this.status === REJECTED) {
+      };
+      const rejectedMicrotask = () => {
+        // 创建一个微任务等待 promise2 完成初始化
         queueMicrotask(() => {
           try {
             const x = onRejected(this.reason);
@@ -103,29 +125,15 @@ class MyPromise {
             reject(err);
           }
         });
+      };
+      // 这里的内容在执行器中，会立即执行
+      if (this.status === FULFILLED) {
+        fulfilledMicrotask();
+      } else if (this.status === REJECTED) {
+        rejectedMicrotask();
       } else if (this.status === PENDING) {
-        this.onFulfilledCallbacks.push(() => {
-          try {
-            // 获取成功回调函数的执行结果
-            const x = onFulfilled(this.value);
-            // 传入 resolvePromise 集中处理
-            resolvePromise(promise2, x, resolve, reject);
-          } catch (error) {
-            reject(error);
-          }
-        });
-        this.onRejectedCallbacks.push(() => {
-          queueMicrotask(() => {
-            try {
-              // 调用失败回调，并且把原因返回
-              const x = onRejected(this.reason);
-              // 传入 resolvePromise 集中处理
-              resolvePromise(promise2, x, resolve, reject);
-            } catch (error) {
-              reject(error);
-            }
-          });
-        });
+        this.onFulfilledCallbacks.push(() => fulfilledMicrotask());
+        this.onRejectedCallbacks.push(() => rejectedMicrotask());
       }
     });
     return promise2;
@@ -148,5 +156,15 @@ function resolvePromise(promise2, x, resolve, reject) {
     resolve(x);
   }
 }
+
+MyPromise.deferred = function () {
+  const result = {};
+  result.promise = new MyPromise(function (resolve, reject) {
+    result.resolve = resolve;
+    result.reject = reject;
+  });
+
+  return result;
+};
 
 export default MyPromise;

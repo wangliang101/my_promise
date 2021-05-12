@@ -2,23 +2,33 @@
 import sdk from '@';
 
 const { MyPromise } = sdk;
-const promise = new MyPromise((resolve, reject) => {
-  // setTimeout(() => {
-  //   resolve('success');
-  // }, 2000);
-  // throw new Error('执行器错误');
-  resolve('succ');
-  // reject('err');
-});
+
+MyPromise.resolve()
+  .then(() => {
+    console.log(0);
+    return MyPromise.resolve(4);
+  })
+  .then((res) => {
+    console.log(res);
+  });
+
+// const promise = new MyPromise((resolve, reject) => {
+//   // setTimeout(() => {
+//   //   resolve('success');
+//   // }, 2000);
+//   // throw new Error('执行器错误');
+//   // resolve('succ');
+//   reject('err');
+// });
 // console.log('dddd', promise.then().then());
 
-promise
-  .then()
-  .then()
-  .then(
-    (value) => console.log(value),
-    (reason) => console.log(reason)
-  );
+// promise
+//   .then()
+//   .then()
+//   .then(
+//     (value) => console.log(value),
+//     (reason) => console.log(reason)
+//   );
 
 // promise.then(
 //   (value) => {
