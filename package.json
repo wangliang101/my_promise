@@ -15,7 +15,7 @@
     "lint": "eslint --ext .js --ext .jsx --ext .vue src/",
     "lint:fix": "eslint --fix --ext .js --ext .jsx --ext .vue src/",
     "server": "a06-server kill all && a06-server start -r ./dist -z -c",
-    "promise-test": "promises-aplus-tests MyPromise"
+    "promise-test": "promises-aplus-tests src/myPromise"
   },
   "repository": {
     "type": "git",
