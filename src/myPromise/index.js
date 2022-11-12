@@ -65,7 +65,7 @@ class MyPromise {
       this.value = value;
       // 判断成功回调是否存在，如果存在就调用
       while (this.onFulfilledCallbacks.length) {
-        // Array.shift() 取出数组第一个元素，然后（）调用，shift不是纯函数，取出后，数组将失去该元素，直到数组为空
+        // Array.shift() 取出数组第一个元素，然后（）调用
         this.onFulfilledCallbacks.shift()(value);
       }
     }
@@ -91,6 +91,101 @@ class MyPromise {
       }
     }
   };
+
+  /**
+   * all 方法接收一个 promise 的 iterable 类型的输入，并且只返回一个Promise实例，
+   * 那个输入的所有 promise 的 resolve 回调的结果是一个数组。这个Promise的 resolve
+   * 回调执行是在所有输入的 promise 的 resolve 回调都结束，或者输入的 iterable 里没有
+   * promise 了的时候。它的 reject 回调执行是，只要任何一个输入的 promise 的 reject
+   * 回调执行或者输入不合法的 promise 就会立即抛出错误，并且 reject 的是第一个抛出的错误信息。
+   * @param {*} promiseList
+   * @returns
+   */
+  static all(promiseList) {
+    return new MyPromise((resolve, reject) => {
+      const { length } = promiseList;
+      const result = [];
+      if (length === 0) {
+        return resolve(result);
+      }
+
+      promiseList.forEach((promise, index) => {
+        MyPromise.resolve(promise).then(
+          (value) => {
+            result[index] = value;
+            if (index + 1 === length) {
+              resolve(result);
+            }
+          },
+          (reason) => {
+            reject(reason);
+          }
+        );
+      });
+    });
+  }
+
+  /**
+   * allSettled 方法返回一个在所有给定的 promise 都已经fulfilled或rejected后的 promise，
+   * 并带有一个对象数组，每个对象表示对应的 promise 结果。
+   * @param {*} promiseList
+   * @returns [ { status: 'fulfilled', value: '' }, {status: "rejected", reason: ""}]
+   */
+  static allSettled(promiseList) {
+    return new MyPromise((resolve) => {
+      const { length } = promiseList;
+      const result = [];
+      if (length === 0) {
+        return resolve(result);
+      }
+
+      promiseList.forEach((promise, index) => {
+        MyPromise.resolve(promise).then(
+          (value) => {
+            result[index] = { status: FULFILLED, value };
+            if (index + 1 === length) {
+              resolve(result);
+            }
+          },
+          (reason) => {
+            result[index] = {
+              status: REJECTED,
+              reason,
+            };
+            if (index + 1 === length) {
+              resolve(result);
+            }
+          }
+        );
+      });
+    });
+  }
+
+  /**
+   * race(iterable) 方法返回一个 promise，一旦迭代器中的某个 promise 解决或拒绝，返回的 promise 就会解决或拒绝。
+   * @param {*} promiseList
+   * @returns promise
+   */
+  static race(promiseList) {
+    return new MyPromise((resolve, reject) => {
+      const { length } = promiseList;
+
+      if (length === 0) {
+        return resolve();
+      }
+
+      for (let i = 0; i < length; i += 1) {
+        MyPromise.resolve(promiseList[i]).then(
+          (value) => {
+            return resolve(value);
+          },
+          (reason) => {
+            return reject(reason);
+          }
+        );
+      }
+    });
+  }
 
   // then方法的实现
   then = (onFulfilled, onRejected) => {
@@ -138,8 +233,26 @@ class MyPromise {
     });
     return promise2;
   };
+
+  catch(onRejected) {
+    return this.then(undefined, onRejected);
+  }
+
+  finally(onFinally) {
+    return this.then(
+      (value) => {
+        MyPromise.resolve(onFinally()).then(() => value);
+      },
+      (reason) => {
+        MyPromise.resolve(onFinally()).then(() => {
+          throw reason;
+        });
+      }
+    );
+  }
 }
 
+// 此处所以逻辑参考 https://promisesaplus.com/
 function resolvePromise(promise, x, resolve, reject) {
   // 如果相等了，说明return的是自己，抛出类型错误并返回
   if (promise === x) {
